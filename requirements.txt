@@ -3,3 +3,6 @@
 # Example: open3d
 # Example: ifcopenshell
 # Example: numpy
+numpy
+open3d>=0.18
+trimesh>=4.0

@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Project data: do not push large files (BIM, frames, point clouds, outputs) ---
+data/**
+!data/**/
+!data/**/.gitkeep
+!data/README.md
