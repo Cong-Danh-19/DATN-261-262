@@ -1,5 +1,10 @@
-# Add project dependencies here.
-# Example: opencv-python
-# Example: open3d
-# Example: ifcopenshell
-# Example: numpy
+# Python >= 3.10 (da chay duoc tren 3.14 voi open3d 0.20)
+numpy
+pandas
+scipy
+matplotlib
+opencv-python
+open3d>=0.18
+ifcopenshell>=0.8
+pyyaml
+jupyter
