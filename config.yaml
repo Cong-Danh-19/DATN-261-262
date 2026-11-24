@@ -1,0 +1,69 @@
+# =============================================================================
+# config.yaml - cau hinh chung cho toan bo pipeline (run_pipeline.py doc file nay)
+# Don vi do dai: MET.  Duong dan tinh tu thu muc goc cua repo.
+# =============================================================================
+
+# --- Duong dan du lieu (dung lai trong phan "args" ben duoi bang {ten}) -------
+paths:
+  video:          data/video.mp4                    # video goc (M1)
+  frames_dir:     data/frames                       # anh da cat + loc mo (M1)
+  colmap_pc:      data/pc_output/colmap.ply         # point cloud tu COLMAP (M1)
+  ifc:            data/bim/PLM.ifc                  # file BIM
+  bim_dir:        data/bim                          # noi 03 xuat cau kien
+  bim_merged:     data/bim/bim_merged.ply           # BIM gop (dich de can chinh)
+  registered_pc:  data/pc_output/registered.ply     # point cloud da can chinh (M2)
+  results_dir:    results                           # ket qua danh gia (M3)
+
+# --- Cac buoc ---------------------------------------------------------------
+# enabled : false  -> bo qua buoc nay
+# inputs  : file phai co truoc khi chay (thieu -> bo qua, bao ro thieu gi)
+# outputs : file buoc nay tao ra (de kiem tra buoc co chay thanh cong khong)
+# args    : tham so truyen cho script; {ten} se duoc thay bang gia tri trong paths
+# Khi M1/M2 viet xong script, chi can sua "args" cho dung voi script cua ho.
+steps:
+  - id: 1
+    name: prep_video
+    title: Cat video thanh anh + loc anh mo (M1)
+    script: src/01_prep_video.py
+    enabled: true
+    inputs:  ["{video}"]
+    outputs: ["{frames_dir}/frames_log.csv"]
+    args: []          # script hien dang ghi cung duong dan ben trong file
+
+  - id: 2
+    name: run_colmap
+    title: Dung point cloud bang COLMAP (M1)
+    script: src/02_run_colmap.py
+    enabled: true
+    inputs:  ["{frames_dir}/frames_log.csv"]
+    outputs: ["{colmap_pc}"]
+    args: ["--frames", "{frames_dir}", "--out", "{colmap_pc}"]
+
+  - id: 3
+    name: bim_parser
+    title: Tach cau kien BIM tu file IFC
+    script: src/03_bim_parser.py
+    enabled: true
+    inputs:  ["{ifc}"]
+    outputs: ["{bim_dir}/elements.csv", "{bim_merged}"]
+    args: ["--ifc", "{ifc}", "--out", "{bim_dir}", "--storey", "TẦNG 2-"]
+
+  - id: 4
+    name: registration
+    title: Can chinh point cloud vao he toa do BIM (M2)
+    script: src/04_registration.py
+    enabled: true
+    inputs:  ["{colmap_pc}", "{bim_merged}"]
+    outputs: ["{registered_pc}"]
+    args: ["--source", "{colmap_pc}", "--target", "{bim_merged}", "--out", "{registered_pc}"]
+
+  - id: 5
+    name: evaluate
+    title: Danh gia tien do theo tung cau kien (M3)
+    script: src/05_evaluate.py
+    enabled: true
+    inputs:  ["{registered_pc}", "{bim_dir}/elements.csv"]
+    outputs: ["{results_dir}/results.csv"]
+    args: ["--pcd", "{registered_pc}", "--bim-dir", "{bim_dir}", "--out", "{results_dir}",
+           "--max-assoc", "0.15", "--dev-threshold", "0.05", "--cov-radius", "0.05",
+           "--t-cov", "0.6", "--t-dev", "0.03", "--t-missing", "0.1"]

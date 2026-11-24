@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---- DATN: khong push du lieu lon / ket qua ----
+data/**
+!data/**/
+!data/**/.gitkeep
+results/
+*.mp4
+*.avi
+*.mov
+*.ply
+*.pcd
+*.ifc
+*.nwd
+*.obj
+*.fbx
+*.npy
