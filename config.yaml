@@ -11,6 +11,7 @@ paths:
   ifc:            data/bim/PLM.ifc                  # file BIM
   bim_dir:        data/bim                          # noi 03 xuat cau kien
   bim_merged:     data/bim/bim_merged.ply           # BIM gop (dich de can chinh)
+  picks:          data/reg/picks.json               # cac cap diem chon tay cho can chinh tho (M2)
   registered_pc:  data/pc_output/registered.ply     # point cloud da can chinh (M2)
   results_dir:    results                           # ket qua danh gia (M3)
 
@@ -53,9 +54,10 @@ steps:
     title: Can chinh point cloud vao he toa do BIM (M2)
     script: src/04_registration.py
     enabled: true
-    inputs:  ["{colmap_pc}", "{bim_merged}"]
+    inputs:  ["{colmap_pc}", "{bim_merged}", "{picks}"]   # picks: tạo 1 lần bằng lệnh pick (chọn tay, xem README)
     outputs: ["{registered_pc}"]
-    args: ["--source", "{colmap_pc}", "--target", "{bim_merged}", "--out", "{registered_pc}"]
+    args: ["--source", "{colmap_pc}", "--target", "{bim_merged}", "--picks", "{picks}",
+           "--out", "{registered_pc}", "--crop-margin", "2"]
 
   - id: 5
     name: evaluate
