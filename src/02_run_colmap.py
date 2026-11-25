@@ -11,7 +11,7 @@ DB_PATH = BASE / "datn.db"
 SPARSE_DIR = BASE / "sparse"            # model làm từ GUI (nằm trực tiếp trong này)
 MAPPER_OUT = BASE / "sparse_auto"       # nếu chạy lại mapper, ghi ra đây để không đè kết quả cũ
 PLY_OUT = BASE / "pc_output" / "sparse_room.ply"
-COLMAP = BASE / "bin" / "COLMAP.bat"    # hoặc r"D:\...\COLMAP.bat"
+COLMAP = BASE / "bin" / "colmap.exe"    # hoặc r"D:\...\COLMAP.bat"
 USE_GPU = "0"                           # máy không có NVIDIA/CUDA
 
 
