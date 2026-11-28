@@ -10,7 +10,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BASE = PROJECT_ROOT / "data"
 
-# Tự động tìm COLMAP trong biến môi trường (Linux/Conda) hoặc thư mục bin nội bộ (Windows)
 _local_colmap = BASE / "bin" / ("colmap.exe" if os.name == "nt" else "colmap")
 COLMAP = str(_local_colmap) if _local_colmap.exists() else (shutil.which("colmap") or "colmap")
 
@@ -34,6 +33,15 @@ def run_cmd(cmd):
     subprocess.run(cmd_str, check=True)
 
 
+def is_colmap_311_or_newer() -> bool:
+    """Kiểm tra xem COLMAP dùng prefix --FeatureExtraction (3.10+) hay --SiftExtraction (3.8)."""
+    try:
+        res = subprocess.run([COLMAP, "feature_extractor", "--help"], capture_output=True, text=True)
+        return "--FeatureExtraction.use_gpu" in (res.stdout + res.stderr)
+    except Exception:
+        return False
+
+
 def find_best_sparse_model(sparse_root: Path) -> Path:
     """Tự động tìm model COLMAP lớn nhất (nhiều ảnh đăng ký nhất) thay vì fix cứng '0'."""
     if not sparse_root.exists():
@@ -55,7 +63,6 @@ def run_colmap_pipeline(
     use_gpu: str = "1",
     max_image_size: str = "1920"
 ):
-    # Kiểm tra các file đầu vào bắt buộc
     if not Path(COLMAP).exists() and not shutil.which(COLMAP):
         sys.exit(f"[LỖI] Không tìm thấy lệnh COLMAP ({COLMAP}). Hãy kích hoạt conda env hoặc kiểm tra PATH!")
     if not IMAGE_DIR.exists() or not any(IMAGE_DIR.glob("*.jpg")):
@@ -66,36 +73,48 @@ def run_colmap_pipeline(
     DENSE_DIR.mkdir(parents=True, exist_ok=True)
     PC_OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. Feature Extraction (Trích xuất đặc trưng SIFT mật độ cao)
+    new_cli = is_colmap_311_or_newer()
+    ext_gpu_flag = "--FeatureExtraction.use_gpu" if new_cli else "--SiftExtraction.use_gpu"
+    match_gpu_flag = "--FeatureMatching.use_gpu" if new_cli else "--SiftMatching.use_gpu"
+
+    # 1. Feature Extraction
     if from_step <= 1:
         if DB_PATH.exists():
             backup_db = WORKSPACE / f"datn_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
             DB_PATH.rename(backup_db)
             print(f"[INFO] Đã backup database cũ sang: {backup_db.name}")
 
-        run_cmd([
+        extract_cmd = [
             COLMAP, "feature_extractor",
             "--database_path", DB_PATH,
             "--image_path", IMAGE_DIR,
             "--ImageReader.camera_model", "OPENCV",
             "--ImageReader.single_camera", "1",
-            "--SiftExtraction.use_gpu", use_gpu,
-            "--SiftExtraction.max_num_features", "8192",
-            "--SiftExtraction.estimate_affine_shape", "1",
-            "--SiftExtraction.domain_size_pooling", "1"
-        ])
+            ext_gpu_flag, use_gpu,
+            "--SiftExtraction.max_num_features", "8192"
+        ]
+        # Affine shape & domain size pooling chỉ bật khi chạy CPU (GPU không hỗ trợ trong SiftGPU)
+        if use_gpu == "0":
+            extract_cmd.extend([
+                "--SiftExtraction.estimate_affine_shape", "1",
+                "--SiftExtraction.domain_size_pooling", "1"
+            ])
+        run_cmd(extract_cmd)
 
-    # 2. Feature Matching (Khớp điểm tương đồng)
+    # 2. Feature Matching
     if from_step <= 2:
         if matcher == "sequential":
             match_args = [
                 COLMAP, "sequential_matcher",
                 "--database_path", DB_PATH,
-                "--SiftMatching.use_gpu", use_gpu,
+                match_gpu_flag, use_gpu,
                 "--SequentialMatching.overlap", "15",
                 "--SequentialMatching.quadratic_overlap", "1"
             ]
-            if VOCAB_TREE.exists():
+            if new_cli:
+                # COLMAP 3.11+ tự động tải vocab_tree mặc định nếu bật loop_detection=1
+                match_args.extend(["--SequentialMatching.loop_detection", "1"])
+            elif VOCAB_TREE.exists():
                 match_args.extend([
                     "--SequentialMatching.loop_detection", "1",
                     "--SequentialMatching.vocab_tree_path", str(VOCAB_TREE)
@@ -107,7 +126,7 @@ def run_colmap_pipeline(
             run_cmd([
                 COLMAP, "exhaustive_matcher",
                 "--database_path", DB_PATH,
-                "--SiftMatching.use_gpu", use_gpu
+                match_gpu_flag, use_gpu
             ])
 
     # 3. Sparse Reconstruction (SfM + Bundle Adjustment)
@@ -135,7 +154,7 @@ def run_colmap_pipeline(
         "--output_type", "PLY"
     ])
 
-    # 4. Image Undistortion (Khử méo ống kính & đóng gói workspace cho bước Dense)
+    # 4. Image Undistortion
     if from_step <= 4:
         if DENSE_DIR.exists():
             shutil.rmtree(DENSE_DIR)
@@ -155,7 +174,7 @@ def run_colmap_pipeline(
         print("Khi có GPU, chạy tiếp lệnh: python src/02_run_colmap.py --from-step 5")
         return
 
-    # 5. PatchMatch Stereo (Tái tạo bản đồ độ sâu dày đặc - yêu cầu GPU NVIDIA CUDA)
+    # 5. PatchMatch Stereo
     if from_step <= 5:
         run_cmd([
             COLMAP, "patch_match_stereo",
@@ -164,7 +183,7 @@ def run_colmap_pipeline(
             "--PatchMatchStereo.geom_consistency", "true"
         ])
 
-    # 6. Stereo Fusion -> Đám mây điểm 3D dày đặc (Dense Point Cloud)
+    # 6. Stereo Fusion
     if from_step <= 6:
         run_cmd([
             COLMAP, "stereo_fusion",
@@ -174,7 +193,7 @@ def run_colmap_pipeline(
             "--output_path", FUSED_PLY
         ])
 
-    # 7. Poisson Meshing -> Mô hình lưới bề mặt 3D dày đặc (Dense 3D Mesh)
+    # 7. Poisson Meshing
     if from_step <= 7:
         run_cmd([
             COLMAP, "poisson_mesher",

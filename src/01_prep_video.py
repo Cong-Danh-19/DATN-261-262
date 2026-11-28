@@ -7,13 +7,13 @@ from pathlib import Path
 # ===== Cấu hình tự động theo thư mục gốc dự án =====
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
-VIDEO_PATH = DATA_DIR / "video.mp4"
+VIDEO_PATH = DATA_DIR / "video1.mp4"
 OUTPUT_DIR = DATA_DIR / "frames"
 
 TARGET_FPS = 1.5            # Tần suất lấy mẫu cửa sổ ban đầu
 MIN_BLUR_PERCENTILE = 20    # Bỏ 20% cửa sổ có độ nét thấp nhất
 MIN_MOTION_DIFF = 4.5       # Ngưỡng sai khác pixel để loại bỏ các frame đứng yên trùng lặp
-MAX_FRAMES = 800            # Nâng giới hạn lên 800 frames cho server GPU
+MAX_FRAMES = 450            # Nâng giới hạn lên 800 frames cho server GPU
 MAX_IMAGE_DIM = 1920        # Chuẩn hóa cạnh dài về Full HD 1920px
 SCORE_WIDTH = 640           # Kích thước ảnh thu nhỏ để tính độ nét và chuyển động
 JPEG_QUALITY = 95
